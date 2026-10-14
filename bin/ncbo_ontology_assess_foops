@@ -58,11 +58,6 @@ if (options[:ontologies].empty? && !options[:all]) || (options[:all] && !options
   exit(1)
 end
 
-if LinkedData.settings.foops_portal_url.to_s.strip.empty?
-  abort("foops_portal_url is not configured. Set it in config/config.rb, for example:\n" \
-        "  config.foops_portal_url = \"https://\#{$UI_HOSTNAME}\"")
-end
-
 logger = Logger.new(options[:logfile])
 acronyms = options[:all] ? nil : options[:ontologies]
 
@@ -70,13 +65,12 @@ generator = NcboCron::Models::FoopsGenerator.new(logger, max_per_run: options[:m
 
 if options[:dry_run]
   pending = generator.pending(acronyms: acronyms, force: options[:force], redo_assessed: options[:redo])
-  puts "Portal URL: #{LinkedData.settings.foops_portal_url}"
   puts "#{pending.length} submission(s) would be processed"
   pending.each do |sub|
     puts "  #{sub.ontology.acronym} (submission ##{sub.submissionId}) — current statuses: #{generator.status_codes(sub)}"
   end
   unless generator.not_assessable.empty?
-    puts "Not publicly reachable, never assessable: #{generator.not_assessable.uniq.join(', ')}"
+    puts "No parsed file on disk, cannot be assessed: #{generator.not_assessable.uniq.join(', ')}"
   end
   exit(0)
 end
@@ -88,5 +82,5 @@ generator.run(acronyms: acronyms, force: options[:force], redo_assessed: options
 puts "Done. Succeeded: #{generator.processed.length} (#{generator.processed.join(', ')})"
 puts "Failed: #{generator.failed.length} (#{generator.failed.join(', ')})" unless generator.failed.empty?
 unless generator.not_assessable.empty?
-  puts "Skipped as not publicly reachable: #{generator.not_assessable.uniq.join(', ')}"
+  puts "Skipped, no parsed file on disk: #{generator.not_assessable.uniq.join(', ')}"
 end

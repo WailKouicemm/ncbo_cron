@@ -20,8 +20,6 @@ module NcboCron
       end
 
       def run(acronyms: nil, force: false, redo_assessed: false)
-        return self unless portal_configured?
-
         candidates = latest_submissions(acronyms)
         pending = candidates.select { |sub| pending?(sub, force, redo_assessed) }
         @skipped = candidates.length - pending.length
@@ -30,7 +28,7 @@ module NcboCron
         remaining = pending.length - targets.length
 
         @logger.info("FOOPS assessment: #{targets.length} submission(s) to process, " \
-                     "#{@skipped} up to date, previously failed or not publicly reachable, " \
+                     "#{@skipped} up to date, previously failed or without a parsed file, " \
                      "#{remaining} deferred to the next run")
         @logger.flush
 
@@ -43,8 +41,6 @@ module NcboCron
       end
 
       def pending(acronyms: nil, force: false, redo_assessed: false)
-        return [] unless portal_configured?
-
         latest_submissions(acronyms).select { |sub| pending?(sub, force, redo_assessed) }
       end
 
@@ -54,22 +50,8 @@ module NcboCron
 
       private
 
-      def portal_configured?
-        return true unless LinkedData.settings.foops_portal_url.to_s.strip.empty?
-
-        @logger.error('LinkedData.settings.foops_portal_url is not configured, no ontology can be assessed')
-        @logger.flush
-        false
-      end
-
-      def publicly_reachable?(submission)
-        ontology = submission.ontology
-        ontology.bring(:viewingRestriction) if ontology.bring?(:viewingRestriction)
-        ontology.viewingRestriction.to_s.eql?('public')
-      end
-
       def pending?(submission, force, redo_assessed)
-        unless publicly_reachable?(submission)
+        unless submission.rdf_path && File.exist?(submission.rdf_path)
           @not_assessable << submission.ontology.acronym
           return false
         end
